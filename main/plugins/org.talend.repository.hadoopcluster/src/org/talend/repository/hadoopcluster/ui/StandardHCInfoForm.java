@@ -53,6 +53,7 @@ import org.talend.hadoop.distribution.helper.HadoopDistributionsHelper;
 import org.talend.hadoop.distribution.model.DistributionBean;
 import org.talend.hadoop.distribution.model.DistributionVersion;
 import org.talend.metadata.managment.ui.dialog.HadoopPropertiesDialog;
+import org.talend.metadata.managment.ui.dialog.SparkPropertiesDialog;
 import org.talend.metadata.managment.ui.utils.ConnectionContextHelper;
 import org.talend.metadata.managment.ui.utils.ExtendedNodeConnectionContextUtils.EHadoopParamName;
 import org.talend.repository.hadoopcluster.conf.HadoopConfsUtils;
@@ -74,6 +75,12 @@ public class StandardHCInfoForm extends AbstractHadoopForm<HadoopClusterConnecti
     private Composite parentForm;
 
     private Composite hadoopPropertiesComposite;
+
+    private Composite sparkPropertiesComposite;
+
+    private SparkPropertiesDialog sparkPropertiesDialog;
+
+    private Button useSparkPropertiesBtn;
 
     private LabelledCombo authenticationCombo;
 
@@ -212,6 +219,7 @@ public class StandardHCInfoForm extends AbstractHadoopForm<HadoopClusterConnecti
         jobHistoryText.setText(StringUtils.trimToEmpty(connection.getJobHistory()));
         stagingDirectoryText.setText(StringUtils.trimToEmpty(connection.getStagingDirectory()));
         useDNHostBtn.setSelection(connection.isUseDNHost());
+        useSparkPropertiesBtn.setSelection(creation ? creation : connection.isUseSparkProperties());
         useCustomConfBtn.setSelection(connection.isUseCustomConfs());
         if (useClouderaNaviBtn != null) {
             useClouderaNaviBtn.setSelection(connection.isUseClouderaNavi());
@@ -250,6 +258,8 @@ public class StandardHCInfoForm extends AbstractHadoopForm<HadoopClusterConnecti
         jobHistoryText.setReadOnly(readOnly);
         stagingDirectoryText.setReadOnly(readOnly);
         useDNHostBtn.setEnabled(!readOnly);
+        useSparkPropertiesBtn.setEnabled(!readOnly);
+        sparkPropertiesDialog.propertyButton.setEnabled(!readOnly && useSparkPropertiesBtn.getSelection());
         useCustomConfBtn.setEnabled(!readOnly);
         hadoopConfsButton.setEnabled(!readOnly && useCustomConfBtn.getSelection());
         if (useClouderaNaviBtn != null) {
@@ -315,6 +325,7 @@ public class StandardHCInfoForm extends AbstractHadoopForm<HadoopClusterConnecti
         maprTHadoopLoginText.setEditable(isMaprTEditable);
 
         propertiesDialog.updateStatusLabel(getHadoopProperties());
+        sparkPropertiesDialog.updateStatusLabel(getSparkProperties());
     }
 
     @Override
@@ -323,6 +334,7 @@ public class StandardHCInfoForm extends AbstractHadoopForm<HadoopClusterConnecti
         addConnectionFields();
         addAuthenticationFields();
         addHadoopPropertiesFields();
+        addSparkPropertiesFields();
         addNavigatorFields();
         addHadoopConfsFields();
 
@@ -512,6 +524,45 @@ public class StandardHCInfoForm extends AbstractHadoopForm<HadoopClusterConnecti
         return hadoopPropertiesList;
     }
 
+    private void addSparkPropertiesFields() {
+        sparkPropertiesComposite = new Composite(this, SWT.NONE);
+        GridLayout sparkPropertiesLayout = new GridLayout(3, false);
+        sparkPropertiesLayout.marginWidth = 5;
+        sparkPropertiesLayout.marginHeight = 5;
+        sparkPropertiesComposite.setLayout(sparkPropertiesLayout);
+        sparkPropertiesComposite.setLayoutData(new GridData(GridData.FILL_HORIZONTAL));
+
+        useSparkPropertiesBtn = new Button(sparkPropertiesComposite, SWT.CHECK);
+        useSparkPropertiesBtn.setText(Messages.getString("HadoopClusterForm.button.useSparkProperties")); //$NON-NLS-1$
+        useSparkPropertiesBtn.setLayoutData(new GridData());
+
+        sparkPropertiesDialog = new SparkPropertiesDialog(getShell(), getSparkProperties()) {
+
+            @Override
+            protected boolean isReadOnly() {
+                return !(useSparkPropertiesBtn.getSelection() && isEditable());
+            }
+
+            @Override
+            protected List<Map<String, Object>> getLatestInitProperties() {
+                return getSparkProperties();
+            }
+
+            @Override
+            public void applyProperties(List<Map<String, Object>> properties) {
+                getConnection().setSparkProperties(HadoopRepositoryUtil.getHadoopPropertiesJsonStr(properties));
+            }
+
+        };
+        sparkPropertiesDialog.createPropertiesFields(sparkPropertiesComposite);
+    }
+
+    private List<Map<String, Object>> getSparkProperties() {
+        String sparkProperties = getConnection().getSparkProperties();
+        List<Map<String, Object>> sparkPropertiesList = HadoopRepositoryUtil.getHadoopPropertiesList(sparkProperties);
+        return sparkPropertiesList;
+    }
+
     private void addNavigatorFields() {
         DistributionBean distriBean = getDistribution();
         MRComponent currentDistribution;
@@ -666,6 +717,16 @@ public class StandardHCInfoForm extends AbstractHadoopForm<HadoopClusterConnecti
             }
         });
 
+        useSparkPropertiesBtn.addSelectionListener(new SelectionAdapter() {
+
+            @Override
+            public void widgetSelected(SelectionEvent e) {
+                sparkPropertiesDialog.propertyButton.setEnabled(useSparkPropertiesBtn.getSelection());
+                getConnection().setUseSparkProperties(useSparkPropertiesBtn.getSelection());
+                checkFieldsValue();
+            }
+        });
+
         useCustomConfBtn.addSelectionListener(new SelectionAdapter() {
 
             @Override
@@ -742,16 +803,6 @@ public class StandardHCInfoForm extends AbstractHadoopForm<HadoopClusterConnecti
             @Override
             public void widgetSelected(SelectionEvent e) {
                 getConnection().setUseDNHost(useDNHostBtn.getSelection());
-                checkFieldsValue();
-            }
-        });
-
-        useCustomConfBtn.addSelectionListener(new SelectionAdapter() {
-
-            @Override
-            public void widgetSelected(SelectionEvent e) {
-                hadoopConfsButton.setEnabled(useCustomConfBtn.getSelection());
-                getConnection().setUseCustomConfs(useCustomConfBtn.getSelection());
                 checkFieldsValue();
             }
         });
